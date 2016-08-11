@@ -14,12 +14,15 @@ BOT_NAME = 'tennis_model_scraper'
 SPIDER_MODULES = ['tennis_model_scraper.spiders']
 NEWSPIDER_MODULE = 'tennis_model_scraper.spiders'
 
+ITEM_PIPELINES = {'scrapy.pipelines.files.FilesPipeline': 1}
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'tennis_model_scraper (+http://www.yourdomain.com)'
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True
+
+FILES_STORE = r"..\raw_data\tennis_data_co_uk"
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
 #CONCURRENT_REQUESTS = 32
