@@ -14,8 +14,6 @@ BOT_NAME = 'tennis_model_scraper'
 SPIDER_MODULES = ['tennis_model_scraper.spiders']
 NEWSPIDER_MODULE = 'tennis_model_scraper.spiders'
 
-ITEM_PIPELINES = {'tennis_model_scraper.pipelines.TennisModelScraperPipeline': 1}
-
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'tennis_model_scraper (+http://www.yourdomain.com)'
 

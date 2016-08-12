@@ -1,0 +1,2 @@
+cd tennis_model_scraper
+scrapy crawl atp_world_tour
