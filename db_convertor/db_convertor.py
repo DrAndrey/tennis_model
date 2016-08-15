@@ -45,6 +45,8 @@ class Match(Base):
     date = Column(Date)
     tournament = Column(String)
     stage = Column(String)
+    surface = Column(String)
+    best_of = Column(Integer)
     games = relationship("Game", secondary=match_game_table)
     winner_rank = Column(Integer)
     loser_rank = Column(Integer)
@@ -155,6 +157,11 @@ def create_players(session, atp_df):
             second_name = "vassallo-arguello"
         return first_name, second_name
 
+    atp_df["winner_first_name"] = atp_df["winner_first_name"].apply(lambda x: x.lower())
+    atp_df["winner_second_name"] = atp_df["winner_second_name"].apply(lambda x: x.lower())
+    atp_df["loser_first_name"] = atp_df["loser_first_name"].apply(lambda x: x.lower())
+    atp_df["loser_second_name"] = atp_df["loser_second_name"].apply(lambda x: x.lower())
+
     winner_full_name = atp_df.apply(lambda x: "{0} {1}".format(x["winner_first_name"], x["winner_second_name"]), axis=1)
     loser_full_name = atp_df.apply(lambda x: "{0} {1}".format(x["loser_first_name"], x["loser_second_name"]), axis=1)
 
@@ -163,7 +170,7 @@ def create_players(session, atp_df):
     unique_names = unique_winner_names.union(unique_loser_names)
 
     for name in unique_names:
-        clean_name = name.lower().replace("jr.", "")
+        clean_name = name.replace("jr.", "")
         splitted_name = clean_name.split()
         if len(splitted_name) == 2:
             first_name = splitted_name[0]
@@ -174,6 +181,43 @@ def create_players(session, atp_df):
             player = Player(first_name=first_name, second_name=second_name)
             session.add(player)
     session.commit()
+
+
+def create_matches(session, atp_df, co_uk_df):
+
+    def get_atp_row(atp_df, co_uk_row_data):
+        splitted_winner_name = co_uk_row_data["Winner"].split()
+        splitted_loser_name = co_uk_row_data["Loser"].split()
+        winner_second_name = " ".join(splitted_winner_name[: -1]).lower()
+        loser_second_name = " ".join(splitted_loser_name[: -1]).lower()
+        atp_row = atp_df[(atp_df["tournament"] == co_uk_row_data["Tournament"]) &
+                         (atp_df["winner_second_name"] == winner_second_name) &
+                         (atp_df["loser_second_name"] == loser_second_name)]
+        assert len(atp_row) == 1
+        return atp_row
+
+    for co_uk_row in co_uk_df[co_uk_df["Comment"] == "Completed"].iterrows():
+        co_uk_row_data = co_uk_row[1]
+        print(co_uk_row_data)
+
+        atp_row = get_atp_row(atp_df, co_uk_row_data)
+        print(atp_row)
+
+        date = co_uk_row_data["Date"].date()
+        tournament = atp_row["tournament"]
+        stage = atp_row["stage_name"]
+        surface = co_uk_row_data["Surface"].lower()
+        best_of = co_uk_row_data["Best of"]
+        # games =
+        winner_rank = int(co_uk_row_data["WRank"])
+        loser_rank = int(co_uk_row_data["LRank"])
+        # winner_odd =
+        # loser_odd =
+        winner_service = atp_row["winner_service_share"].values[0]
+        loser_service = atp_row["loser_service_share"].values[0]
+        winner_return = atp_row["winner_return_share"].values[0]
+        loser_return = atp_row["loser_return_share"].values[0]
+        break
 
 
 if __name__ == '__main__':
@@ -189,8 +233,9 @@ if __name__ == '__main__':
 
     atp_df, co_uk_df = load_data(converted_year)
 
-    print(atp_df.columns.values)
-    print(co_uk_df.columns.values)
+    # print(atp_df.columns.values)
+    # print(co_uk_df.columns.values)
 
     compare_tournament_names(atp_df, co_uk_df)
     create_players(session, atp_df)
+    create_matches(session, atp_df, co_uk_df)
