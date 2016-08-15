@@ -38,7 +38,7 @@ class ATPWorldTourSpider(scrapy.Spider):
 
     def parse(self, response):
         tournament_links = response.xpath("//*[@id='scoresResultsArchive']/table/tbody/tr/td[8]/a/@href")
-        for link in tournament_links[: 1]:
+        for link in tournament_links:
             url = response.urljoin(link.extract())
             yield scrapy.Request(url, callback=self.parse_tournament)
 

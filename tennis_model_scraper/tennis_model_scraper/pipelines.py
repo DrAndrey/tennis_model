@@ -32,7 +32,9 @@ class ATPWorldTourPipeline(object):
     def __init__(self):
         self.output_path = os.path.join(settings.FILES_STORE, atp_world_tour_path)
         for year in range(atp_world_tour_spider.first_year, atp_world_tour_spider.last_year+1):
-            os.remove(self._get_file_path(year))
+            file_name = self._get_file_path(year)
+            if os.path.exists(file_name):
+                os.remove(file_name)
 
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
@@ -63,12 +65,21 @@ class ATPWorldTourPipeline(object):
             row["winner_first_name"], row["winner_second_name"] = self._split_player_name(item["winner_name"])
             row["loser_first_name"], row["loser_second_name"] = self._split_player_name(item["loser_name"])
 
-            row["winner_service_share"] = float(item["winner_stats"]["TotalServicePointsWonDividend"]) / \
-                                          item["winner_stats"]["TotalServicePointsWonDivisor"]
-            row["winner_return_share"] = float(item["winner_stats"]["TotalReturnPointsWonDividend"]) / \
-                                         item["winner_stats"]["TotalReturnPointsWonDivisor"]
-            row["loser_service_share"] = float(item["loser_stats"]["TotalServicePointsWonDividend"]) / \
-                                         item["loser_stats"]["TotalServicePointsWonDivisor"]
-            row["loser_return_share"] = float(item["loser_stats"]["TotalReturnPointsWonDividend"]) / \
-                                        item["loser_stats"]["TotalReturnPointsWonDivisor"]
+            row["winner_service_share"] = 0.
+            row["winner_return_share"] = 0.
+            row["loser_service_share"] = 0.
+            row["loser_return_share"] = 0.
+
+            if item["winner_stats"]["TotalServicePointsWonDivisor"]:
+                row["winner_service_share"] = float(item["winner_stats"]["TotalServicePointsWonDividend"]) / \
+                                              item["winner_stats"]["TotalServicePointsWonDivisor"]
+            if item["winner_stats"]["TotalReturnPointsWonDivisor"]:
+                row["winner_return_share"] = float(item["winner_stats"]["TotalReturnPointsWonDividend"]) / \
+                                             item["winner_stats"]["TotalReturnPointsWonDivisor"]
+            if item["loser_stats"]["TotalServicePointsWonDivisor"]:
+                row["loser_service_share"] = float(item["loser_stats"]["TotalServicePointsWonDividend"]) / \
+                                             item["loser_stats"]["TotalServicePointsWonDivisor"]
+            if item["loser_stats"]["TotalReturnPointsWonDivisor"]:
+                row["loser_return_share"] = float(item["loser_stats"]["TotalReturnPointsWonDividend"]) / \
+                                            item["loser_stats"]["TotalReturnPointsWonDivisor"]
             writer.writerow(row)
