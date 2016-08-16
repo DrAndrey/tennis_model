@@ -196,12 +196,36 @@ def create_matches(session, atp_df, co_uk_df):
         assert len(atp_row) == 1
         return atp_row
 
+    def get_odds(co_uk_row):
+        if "AvgW" in co_uk_row.index.values:
+            return co_uk_row["AvgW"], co_uk_row["AvgL"]
+        col_names = co_uk_row["Comment":].index.values
+
+        winner_odd = 0
+        loser_odd = 0
+        delim = 0
+        for name in col_names[1:]:
+            if co_uk_row[name] and "Max" not in name:
+                if name[-1] == "W":
+                    winner_odd += co_uk_row[name]
+                elif name[-1] == "L":
+                    loser_odd += co_uk_row[name]
+                else:
+                    raise Exception("Strange odd name - {0}".format(name))
+                delim += 1
+
+        if not delim or delim % 1:
+            raise Exception("No odds or odd number of odds for row - {0}, delim - {1}".format(co_uk_row, delim))
+
+        delim /= 2
+        winner_odd /= delim
+        loser_odd /= delim
+        return winner_odd, loser_odd
+
     for co_uk_row in co_uk_df[co_uk_df["Comment"] == "Completed"].iterrows():
         co_uk_row_data = co_uk_row[1]
-        print(co_uk_row_data)
 
         atp_row = get_atp_row(atp_df, co_uk_row_data)
-        print(atp_row)
 
         date = co_uk_row_data["Date"].date()
         tournament = atp_row["tournament"]
@@ -211,8 +235,8 @@ def create_matches(session, atp_df, co_uk_df):
         # games =
         winner_rank = int(co_uk_row_data["WRank"])
         loser_rank = int(co_uk_row_data["LRank"])
-        # winner_odd =
-        # loser_odd =
+        winner_odd, loser_odd = get_odds(co_uk_row_data)
+
         winner_service = atp_row["winner_service_share"].values[0]
         loser_service = atp_row["loser_service_share"].values[0]
         winner_return = atp_row["winner_return_share"].values[0]
