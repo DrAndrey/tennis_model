@@ -61,9 +61,11 @@ class Match(Base):
 def init_games(session):
     games = [[6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [7, 5], [7, 6]]
     for winner_points, loser_points in games:
-        if not session.query(Game).filter(winner_points == winner_points and loser_points == loser_points).count():
-            game = Game(winner_points=winner_points, loser_points=loser_points)
-            session.add(game)
+        if not session.query(Game).filter(Game.winner_points == winner_points, Game.loser_points == loser_points).count():
+            game_w = Game(winner_points=winner_points, loser_points=loser_points)
+            game_l = Game(winner_points=loser_points, loser_points=winner_points)
+            session.add_all([game_w, game_l])
+
     session.commit()
 
 
@@ -196,6 +198,26 @@ def create_matches(session, atp_df, co_uk_df):
         assert len(atp_row) == 1
         return atp_row
 
+    def get_games(co_uk_row):
+        games = []
+        co_uk_games = co_uk_row["W1": "L5"]
+        for game_num in range(1, 6):
+            winner_col_name = "W{0}".format(game_num)
+            loser_col_name = "L{0}".format(game_num)
+            winner_points = co_uk_games[winner_col_name]
+            loser_points = co_uk_games[loser_col_name]
+            if pd.isnull(winner_points) or pd.isnull(loser_points):
+                if (pd.isnull(winner_points) and not pd.isnull(loser_points)) or \
+                   (not pd.isnull(winner_points) and pd.isnull(loser_points)):
+                    raise Exception("Strange games points for row - {0}".format(co_uk_row))
+                break
+            winner_points = int(winner_points)
+            loser_points = int(loser_points)
+            game = session.query(Game).filter(Game.winner_points == winner_points,
+                                              Game.loser_points == loser_points).one()
+            games.append(game)
+        return games
+
     def get_odds(co_uk_row):
         if "AvgW" in co_uk_row.index.values:
             return co_uk_row["AvgW"], co_uk_row["AvgL"]
@@ -232,7 +254,7 @@ def create_matches(session, atp_df, co_uk_df):
         stage = atp_row["stage_name"]
         surface = co_uk_row_data["Surface"].lower()
         best_of = co_uk_row_data["Best of"]
-        # games =
+        games = get_games(co_uk_row_data)
         winner_rank = int(co_uk_row_data["WRank"])
         loser_rank = int(co_uk_row_data["LRank"])
         winner_odd, loser_odd = get_odds(co_uk_row_data)
