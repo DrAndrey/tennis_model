@@ -11,6 +11,7 @@ import pandas as pd
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Date, Table, Float, UniqueConstraint
 from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm.exc import NoResultFound
 
 import tennis_model.tennis_model_scraper.tennis_model_scraper.settings as settings
 
@@ -59,12 +60,11 @@ class Match(Base):
 
 
 def init_games(session):
-    games = [[6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [7, 5], [7, 6]]
+    games = [[6, 0], [6, 1], [6, 2], [6, 3], [6, 4], [7, 5], [7, 6], [10, 8], [8, 6], [11, 9], [9, 7], [16, 14]]
     for winner_points, loser_points in games:
-        if not session.query(Game).filter(Game.winner_points == winner_points, Game.loser_points == loser_points).count():
-            game_w = Game(winner_points=winner_points, loser_points=loser_points)
-            game_l = Game(winner_points=loser_points, loser_points=winner_points)
-            session.add_all([game_w, game_l])
+        game_w = Game(winner_points=winner_points, loser_points=loser_points)
+        game_l = Game(winner_points=loser_points, loser_points=winner_points)
+        session.add_all([game_w, game_l])
 
     session.commit()
 
@@ -143,10 +143,38 @@ def compare_tournament_names(atp_df, co_uk_df):
     co_uk_df["Tournament"] = co_uk_df["Tournament"].map(compared_names)
 
 
-def create_players(session, atp_df):
+def correct_player_names(co_uk_df):
+    winner_names = co_uk_df["Winner"].unique()
+    winner_dict = {name: name for name in winner_names}
 
-    def determine_long_name(splitted_name):
-        articles = ["de", "el", "di", "del", "van", "der"]
+    loser_names = co_uk_df["Loser"].unique()
+    loser_dict = {name: name for name in loser_names}
+
+    handle_correction = {"Navarro-Pastor I.": "Navarro I.", "Sultan-Khalfan A.": "Khalfan S.",
+                         "Ramirez-Hidalgo R.": "Hidalgo R.", "Querry S.": "Querrey S.",
+                         "Van der Dium A.": "Van der Duim A.", "Gallardo Valles M.": "Gallardo-Valles M.",
+                         "Al Ghareeb M.": "Ghareeb M.", "Bahrouzyan O.": "Alawadhi O.",
+                         "Granollers-Pujol M.": "Granollers M.", "Salva B.": "Salva-Vidal B.",
+                         "Luque D.": "Luque-Velasco D.", "Haider-Mauer A.": "Haider-Maurer A.",
+                         "Dev Varman S.": "Devvarman S.", "Schuttler P.": "Schuettler P."}
+    for old_name, new_name in handle_correction.items():
+        if old_name not in winner_names and old_name not in loser_names:
+            raise Exception("Unexpected name - {0}".format(old_name))
+        winner_dict[old_name] = new_name
+        loser_dict[old_name] = new_name
+
+    co_uk_df["Winner"] = co_uk_df["Winner"].map(winner_dict)
+    co_uk_df["Loser"] = co_uk_df["Loser"].map(loser_dict)
+
+
+def determine_name_parts(name):
+    articles = ["de", "el", "di", "del", "van", "der"]
+    clean_name = name.replace("jr.", "")
+    splitted_name = clean_name.split()
+    if len(splitted_name) == 2:
+        first_name = splitted_name[0]
+        second_name = splitted_name[1]
+    else:
         for border_num, name_part in enumerate(splitted_name[1:]):
             if name_part in articles:
                 break
@@ -157,44 +185,52 @@ def create_players(session, atp_df):
         if first_name == "martin vassallo":
             first_name = "martin"
             second_name = "vassallo-arguello"
-        return first_name, second_name
+    return first_name, second_name
 
+
+def create_players(session, atp_df):
     atp_df["winner_first_name"] = atp_df["winner_first_name"].apply(lambda x: x.lower())
     atp_df["winner_second_name"] = atp_df["winner_second_name"].apply(lambda x: x.lower())
     atp_df["loser_first_name"] = atp_df["loser_first_name"].apply(lambda x: x.lower())
     atp_df["loser_second_name"] = atp_df["loser_second_name"].apply(lambda x: x.lower())
 
-    winner_full_name = atp_df.apply(lambda x: "{0} {1}".format(x["winner_first_name"], x["winner_second_name"]), axis=1)
-    loser_full_name = atp_df.apply(lambda x: "{0} {1}".format(x["loser_first_name"], x["loser_second_name"]), axis=1)
-
-    unique_winner_names = set(winner_full_name.unique())
-    unique_loser_names = set(loser_full_name.unique())
+    atp_df["winner_full_name"] = atp_df.apply(lambda x: "{0} {1}".format(x["winner_first_name"],
+                                                                         x["winner_second_name"]), axis=1)
+    atp_df["loser_full_name"] = atp_df.apply(lambda x: "{0} {1}".format(x["loser_first_name"], x["loser_second_name"]),
+                                             axis=1)
+    unique_winner_names = set(atp_df["winner_full_name"].unique())
+    unique_loser_names = set(atp_df["loser_full_name"].unique())
     unique_names = unique_winner_names.union(unique_loser_names)
 
     for name in unique_names:
-        clean_name = name.replace("jr.", "")
-        splitted_name = clean_name.split()
-        if len(splitted_name) == 2:
-            first_name = splitted_name[0]
-            second_name = splitted_name[1]
-        else:
-            first_name, second_name = determine_long_name(splitted_name)
-        if not session.query(Player).filter(first_name == first_name and second_name == second_name).count():
+        first_name, second_name = determine_name_parts(name)
+        atp_df.loc[atp_df["winner_full_name"] == name, "winner_second_name"] = second_name
+        atp_df.loc[atp_df["winner_full_name"] == name, "winner_first_name"] = first_name
+        atp_df.loc[atp_df["loser_full_name"] == name, "loser_second_name"] = second_name
+        atp_df.loc[atp_df["loser_full_name"] == name, "loser_first_name"] = first_name
+        if not session.query(Player).filter(Player.first_name == first_name, Player.second_name == second_name).count():
             player = Player(first_name=first_name, second_name=second_name)
             session.add(player)
     session.commit()
 
 
-def create_matches(session, atp_df, co_uk_df):
+def create_matches(session, atp_df, co_uk_df, converted_year):
 
     def get_atp_row(atp_df, co_uk_row_data):
-        splitted_winner_name = co_uk_row_data["Winner"].split()
-        splitted_loser_name = co_uk_row_data["Loser"].split()
-        winner_second_name = " ".join(splitted_winner_name[: -1]).lower()
-        loser_second_name = " ".join(splitted_loser_name[: -1]).lower()
+        def clean_name(name):
+            splitted_name = name.split()[: -1]
+            return " ".join(splitted_name).lower()
+
+        winner_second_name = clean_name(co_uk_row_data["Winner"])
+        loser_second_name = clean_name(co_uk_row_data["Loser"])
         atp_row = atp_df[(atp_df["tournament"] == co_uk_row_data["Tournament"]) &
                          (atp_df["winner_second_name"] == winner_second_name) &
                          (atp_df["loser_second_name"] == loser_second_name)]
+        if len(atp_row) != 1:
+            print(atp_row)
+            print(co_uk_row_data)
+            print(winner_second_name)
+            print(loser_second_name)
         assert len(atp_row) == 1
         return atp_row
 
@@ -213,8 +249,14 @@ def create_matches(session, atp_df, co_uk_df):
                 break
             winner_points = int(winner_points)
             loser_points = int(loser_points)
-            game = session.query(Game).filter(Game.winner_points == winner_points,
-                                              Game.loser_points == loser_points).one()
+            if winner_points == 5 and loser_points == 6:
+                raise ValueError()
+            try:
+                game = session.query(Game).filter(Game.winner_points == winner_points,
+                                                  Game.loser_points == loser_points).one()
+            except NoResultFound:
+                raise Exception("Need to add new game. Winner points - {0}, loser points - {1}".format(winner_points,
+                                                                                                       loser_points))
             games.append(game)
         return games
 
@@ -244,34 +286,56 @@ def create_matches(session, atp_df, co_uk_df):
         loser_odd /= delim
         return winner_odd, loser_odd
 
-    for co_uk_row in co_uk_df[co_uk_df["Comment"] == "Completed"].iterrows():
+    co_uk_df = co_uk_df[(co_uk_df["Comment"] == "Completed") & (~pd.isnull(co_uk_df["Tournament"]) &
+                                                                (co_uk_df["Round"] != "The Final"))]
+
+    dropped_matches = [(2006, 153), (2006, 2147)]
+    for co_uk_row in co_uk_df.iterrows():
         co_uk_row_data = co_uk_row[1]
+        if (converted_year, co_uk_row_data.name) not in dropped_matches:
+            need_to_save = True
+            atp_row = get_atp_row(atp_df, co_uk_row_data)
 
-        atp_row = get_atp_row(atp_df, co_uk_row_data)
+            date = co_uk_row_data["Date"].date()
+            tournament = atp_row["tournament"].values[0]
+            stage = atp_row["stage_name"].values[0]
+            surface = co_uk_row_data["Surface"].lower()
+            best_of = co_uk_row_data["Best of"]
+            try:
+                games = get_games(co_uk_row_data)
+                winner_rank = int(co_uk_row_data["WRank"])
+                loser_rank = int(co_uk_row_data["LRank"])
+            except ValueError:
+                need_to_save = False
+            winner_odd, loser_odd = get_odds(co_uk_row_data)
 
-        date = co_uk_row_data["Date"].date()
-        tournament = atp_row["tournament"]
-        stage = atp_row["stage_name"]
-        surface = co_uk_row_data["Surface"].lower()
-        best_of = co_uk_row_data["Best of"]
-        games = get_games(co_uk_row_data)
-        winner_rank = int(co_uk_row_data["WRank"])
-        loser_rank = int(co_uk_row_data["LRank"])
-        winner_odd, loser_odd = get_odds(co_uk_row_data)
+            winner_service = atp_row["winner_service_share"].values[0]
+            loser_service = atp_row["loser_service_share"].values[0]
+            winner_return = atp_row["winner_return_share"].values[0]
+            loser_return = atp_row["loser_return_share"].values[0]
 
-        winner_service = atp_row["winner_service_share"].values[0]
-        loser_service = atp_row["loser_service_share"].values[0]
-        winner_return = atp_row["winner_return_share"].values[0]
-        loser_return = atp_row["loser_return_share"].values[0]
-        break
+            if need_to_save:
+                match = Match(date=date, tournament=tournament, stage=stage, surface=surface, best_of=best_of,
+                              games=games, winner_rank=winner_rank, loser_rank=loser_rank, winner_odd=winner_odd,
+                              loser_odd=loser_odd, winner_service=winner_service, loser_service=loser_service,
+                              winner_return=winner_return, loser_return=loser_return)
+                session.add(match)
+
+                winner = session.query(Player).filter(Player.second_name == atp_row["winner_second_name"].values[0],
+                                                      Player.first_name == atp_row["winner_first_name"].values[0]).one()
+                loser = session.query(Player).filter(Player.second_name == atp_row["loser_second_name"].values[0],
+                                                     Player.first_name == atp_row["loser_first_name"].values[0]).one()
+                winner.matches.append(match)
+                loser.matches.append(match)
+    session.commit()
 
 
 if __name__ == '__main__':
     converted_year = 2006
     engine = create_engine('sqlite:///tennis_model.db')
 
-    # Base.metadata.drop_all(engine)
-    # Base.metadata.create_all(engine)
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -283,5 +347,6 @@ if __name__ == '__main__':
     # print(co_uk_df.columns.values)
 
     compare_tournament_names(atp_df, co_uk_df)
+    correct_player_names(co_uk_df)
     create_players(session, atp_df)
-    create_matches(session, atp_df, co_uk_df)
+    create_matches(session, atp_df, co_uk_df, converted_year)
