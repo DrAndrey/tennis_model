@@ -11,7 +11,7 @@ import scrapy
 
 from tennis_model.tennis_model_scraper.tennis_model_scraper import items
 
-first_year = datetime.datetime.now().year
+first_year = 2008  # datetime.datetime.now().year
 last_year = first_year
 
 player_stats_keys = ['playerStats', 'opponentStats']
@@ -44,16 +44,31 @@ class ATPWorldTourSpider(scrapy.Spider):
 
     def parse_tournament(self, response):
         stage_names = []
-        unique_stage_names = response.xpath("//*[@id='scoresResultsContent']/div/table/thead/tr/th/text()")
-        for seq, stage_name in zip(response.xpath("//*[@id='scoresResultsContent']/div/table/tbody"),
-                                   unique_stage_names):
-            n_stages = len(seq.xpath('tr'))
-            for i in range(n_stages):
-                stage_names.append(stage_name)
+        # unique_stage_names = response.xpath("//*[@id='scoresResultsContent']/div/table/thead/tr/th/text()")
+        # for seq, stage_name in zip(response.xpath("//*[@id='scoresResultsContent']/div/table/tbody"),
+        #                            unique_stage_names):
+        #     n_stages = len(seq.xpath('tr'))
+        #     for i in range(n_stages):
+        #         stage_names.append(stage_name)
+        #
+        winner_names = []
+        loser_names = []
+        match_links = []
 
-        winner_names = response.xpath("//*[@id='scoresResultsContent']/div/table/tbody/tr/td[3]/a/text()")
-        loser_names = response.xpath("//*[@id='scoresResultsContent']/div/table/tbody/tr/td[7]/a/text()")
-        match_links = response.xpath("//*[@id='scoresResultsContent']/div/table/tbody/tr/td[8]/a/@href")
+        tbodies = response.xpath("//*[@id='scoresResultsContent']/div/table/tbody")
+        theads = response.xpath("//*[@id='scoresResultsContent']/div/table/thead")
+        for tbody, thead in zip(tbodies, theads):
+            stage_name = thead.xpath("tr/th/text()")[0]
+            for row in tbody.xpath("tr"):
+                href = row.xpath("td[8]/a/@href")
+                if len(href) == 1:
+                    winner_name = row.xpath("td[3]/a/text()")[0]
+                    loser_name = row.xpath("td[7]/a/text()")[0]
+
+                    winner_names.append(winner_name)
+                    loser_names.append(loser_name)
+                    match_links.append(href[0])
+                    stage_names.append(stage_name)
         winner_names.reverse()
         loser_names.reverse()
         match_links.reverse()
@@ -86,4 +101,3 @@ class ATPWorldTourSpider(scrapy.Spider):
 
 if __name__ == '__main__':
     pass
-
