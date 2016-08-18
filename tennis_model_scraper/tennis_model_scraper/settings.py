@@ -9,6 +9,9 @@
 #     http://scrapy.readthedocs.org/en/latest/topics/downloader-middleware.html
 #     http://scrapy.readthedocs.org/en/latest/topics/spider-middleware.html
 
+tennis_data_co_uk_path = "tennis_data_co_uk"
+atp_world_tour_path = "atp_world_tour"
+
 BOT_NAME = 'tennis_model_scraper'
 
 SPIDER_MODULES = ['tennis_model_scraper.spiders']

@@ -13,9 +13,6 @@ from scrapy.pipelines.files import FilesPipeline
 import tennis_model.tennis_model_scraper.tennis_model_scraper.settings as settings
 import tennis_model.tennis_model_scraper.tennis_model_scraper.spiders.atp_world_tour_spider as atp_world_tour_spider
 
-tennis_data_co_uk_path = "tennis_data_co_uk"
-atp_world_tour_path = "atp_world_tour"
-
 csv_field_names = ["tournament", "stage_name", "winner_first_name", "winner_second_name", "loser_first_name",
                    "loser_second_name", "winner_service_share", "winner_return_share", "loser_service_share",
                    "loser_return_share"]
@@ -24,13 +21,13 @@ csv_field_names = ["tournament", "stage_name", "winner_first_name", "winner_seco
 class TennisDataCoUkPipeline(FilesPipeline):
     def file_path(self, request, response=None, info=None):
         file_name = request.url.split('/')[-2]
-        file_path = os.path.join(tennis_data_co_uk_path, "{0}.zip".format(file_name))
+        file_path = os.path.join(settings.tennis_data_co_uk_path, "{0}.zip".format(file_name))
         return file_path
 
 
 class ATPWorldTourPipeline(object):
     def __init__(self):
-        self.output_path = os.path.join(settings.FILES_STORE, atp_world_tour_path)
+        self.output_path = os.path.join(settings.FILES_STORE, settings.atp_world_tour_path)
         for year in range(atp_world_tour_spider.first_year, atp_world_tour_spider.last_year+1):
             file_name = self._get_file_path(year)
             if os.path.exists(file_name):
