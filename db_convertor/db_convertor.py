@@ -131,7 +131,9 @@ def compare_tournament_names(atp_df, co_uk_df):
                          "dubai tennis championships": "dubai duty free tennis championships",
                          "kremlin cup": "vtb kremlin cup", "chennai open": "aircel chennai open",
                          "bnp paribas": "bnp paribas masters", "pacific life open": "bnp paribas open",
-                         "austrian open": "generali open"}
+                         "austrian open": "generali open", "shanghai masters": "shanghai rolex masters",
+                         "brisbane international": "brisbane international presented by suncorp",
+                         "proton malaysian open": "malaysian open kuala lumpur"}
     for co_uk_name, atp_name in handle_comparison.items():
         if atp_name in search_names:
             compared_names[co_uk_name] = atp_name
@@ -166,7 +168,9 @@ def correct_player_names(co_uk_df):
                          "Matsukevitch D.": "Matsukevich D.", "Chekov P.": "Chekhov P.", "Haji A.": "Hajji A.",
                          "Podlipnik H.": "Podlipnik-Castillo H.", "Munoz de la Nava D.": "de la Nava D.",
                          "Al-Ghareeb M.": "Ghareeb M.", "Lopez-Jaen M.A.": "Jaen M.",
-                         "Sanchez De Luna J.": "Luna J.", "Estrella V.": "Burgos V.", "De Heart R.": "Deheart R."}
+                         "Sanchez De Luna J.": "Luna J.", "Estrella V.": "Burgos V.", "De Heart R.": "Deheart R.",
+                         "Munoz de La Nava D.": "de la Nava D.", "Munoz-De La Nava D.": "de la Nava D.",
+                         "Del Bonis F.": "Delbonis F."}
     for old_name, new_name in handle_correction.items():
         if old_name in winner_names:
             winner_dict[old_name] = new_name
@@ -241,6 +245,7 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
             print(co_uk_row_data)
             print(winner_second_name)
             print(loser_second_name)
+            # print(atp_df["loser_second_name"].unique())
 
         assert len(atp_row) == 1
         return atp_row
@@ -306,7 +311,7 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
     co_uk_df = co_uk_df[(co_uk_df["Comment"] == "Completed") & (~pd.isnull(co_uk_df["Tournament"]) &
                         (co_uk_df["Round"] != "Round Robin") & (co_uk_df["Winner"] != "fnisk"))]
     dropped_matches = {2006: [159, 1486, 1511, 1919, 2147], 2007: [240, 387, 558, 581, 1763, 2552],
-                       2008: [43, 602, 621, 714, 1060, 1061, 1064, 1073, 1076, 2691], 2009: []}
+                       2008: [43, 602, 621, 714, 1060, 1061, 1064, 1073, 1076, 2691], 2009: [61, 195, 218, 1666]}
     for co_uk_row in co_uk_df.iterrows():
         co_uk_row_data = co_uk_row[1]
         if co_uk_row_data.name not in dropped_matches[converted_year]:
@@ -348,7 +353,7 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
 
 
 if __name__ == '__main__':
-    converted_years = [2008]
+    converted_years = [2009]
     engine = create_engine('sqlite:///tennis_model.db')
 
     Base.metadata.drop_all(engine)
