@@ -191,7 +191,9 @@ def correct_player_names(co_uk_df):
                          "Van D. Merwe I.": "Van der Merwe I.", "Ali Mutawa J.M.": "Mutawa J.",
                          "Zayed M. S.": "Zayed S.", "Carreno-Busta P.": "Busta P.", "Estrella Burgos V.": "Burgos V.",
                          "Artunedo Martinavarro A.": "Martinavarro A.", "Carballes Baena R.": "Baena R.",
-                         "Vega Hernandez D.": "Hernandez D."}
+                         "Vega Hernandez D.": "Hernandez D.", "Zayid M. S.": "Zayid M.",
+                         "Munoz De La Nava D.": "de la Nava D.", "Carreno Busta P.": "Busta P.",
+                         "Bautista Agut R.": "Agut R."}
     for old_name, new_name in handle_correction.items():
         if old_name in winner_names:
             winner_dict[old_name] = new_name
@@ -337,7 +339,7 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
     dropped_matches = {2006: [159, 1486, 1511, 1919, 2147], 2007: [240, 387, 558, 581, 1763, 2552],
                        2008: [43, 602, 621, 714, 1060, 1061, 1064, 1073, 1076, 2691], 2009: [61, 195, 218, 1666],
                        2010: [1241, 1299], 2011: [1286], 2012: [529, 547], 2013: [1040, 2162, 2176], 2014: [971, 1914],
-                       2015: [2287, 2293], 2016: []}
+                       2015: [2287, 2293], 2016: list(range(1382, 1409))}
     for co_uk_row in co_uk_df.iterrows():
         co_uk_row_data = co_uk_row[1]
         if co_uk_row_data.name not in dropped_matches[converted_year]:
@@ -379,7 +381,7 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
 
 
 if __name__ == '__main__':
-    converted_years = [2015]
+    converted_years = [2016]
     engine = create_engine('sqlite:///tennis_model.db')
 
     Base.metadata.drop_all(engine)
