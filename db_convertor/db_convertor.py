@@ -6,7 +6,9 @@
 
 import os
 import zipfile
+import datetime
 
+import xlrd
 import pandas as pd
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Date, Table, Float, UniqueConstraint
@@ -90,6 +92,9 @@ def load_data(converted_year):
     except FileNotFoundError:
         co_uk_df = pd.read_excel(tennis_data_co_uk_file + "x", sheetname=str(converted_year))
         os.remove(tennis_data_co_uk_file + "x")
+    except xlrd.biffh.XLRDError:
+        co_uk_df = pd.read_excel(tennis_data_co_uk_file)
+        os.remove(tennis_data_co_uk_file)
 
     return atp_df, co_uk_df
 
@@ -381,7 +386,7 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
 
 
 if __name__ == '__main__':
-    converted_years = [2016]
+    converted_years = list(range(2006, datetime.datetime.now().year))
     engine = create_engine('sqlite:///tennis_model.db')
 
     Base.metadata.drop_all(engine)
