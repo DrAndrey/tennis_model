@@ -94,7 +94,7 @@ def load_data(converted_year):
     return atp_df, co_uk_df
 
 
-def compare_tournament_names(atp_df, co_uk_df):
+def compare_tournament_names(atp_df, co_uk_df, converted_year):
     atp_df["tournament"] = atp_df["tournament"].apply(lambda x: x.replace("-", " "))
     co_uk_df["Tournament"] = co_uk_df["Tournament"].dropna().apply(lambda x: x.replace(".", "").lower())
 
@@ -141,7 +141,12 @@ def compare_tournament_names(atp_df, co_uk_df):
                          "atlanta tennis championships": "bbt atlanta open", "power horse cup": "dusseldorf open",
                          "open de nice côte d’azur": "open de nice cote dazur",
                          "winston-salem open at wake forest university": "winston salem open",
-                         "rio open": "rio open presented by claro"}
+                         "rio open": "rio open presented by claro", "millenium estoril open": "millennium estoril open",
+                         "ecuador open": "ecuador open quito", "geneva open": "banque eric sturdza geneva open",
+                         "istanbul open": "teb bnp paribas istanbul open"}
+    if converted_year >= 2015:
+        handle_comparison["masters cup"] = "barclays atp world tour finals"
+
     for co_uk_name, atp_name in handle_comparison.items():
         if atp_name in search_names:
             compared_names[co_uk_name] = atp_name
@@ -185,7 +190,8 @@ def correct_player_names(co_uk_df):
                          "Al Mutawa J.": "Mutawa J.", "Bautista R.": "Agut R.",
                          "Van D. Merwe I.": "Van der Merwe I.", "Ali Mutawa J.M.": "Mutawa J.",
                          "Zayed M. S.": "Zayed S.", "Carreno-Busta P.": "Busta P.", "Estrella Burgos V.": "Burgos V.",
-                         "Artunedo Martinavarro A.": "Martinavarro A.", "Carballes Baena R.": "Baena R."}
+                         "Artunedo Martinavarro A.": "Martinavarro A.", "Carballes Baena R.": "Baena R.",
+                         "Vega Hernandez D.": "Hernandez D."}
     for old_name, new_name in handle_correction.items():
         if old_name in winner_names:
             winner_dict[old_name] = new_name
@@ -331,7 +337,7 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
     dropped_matches = {2006: [159, 1486, 1511, 1919, 2147], 2007: [240, 387, 558, 581, 1763, 2552],
                        2008: [43, 602, 621, 714, 1060, 1061, 1064, 1073, 1076, 2691], 2009: [61, 195, 218, 1666],
                        2010: [1241, 1299], 2011: [1286], 2012: [529, 547], 2013: [1040, 2162, 2176], 2014: [971, 1914],
-                       2015: [], 2016: []}
+                       2015: [2287, 2293], 2016: []}
     for co_uk_row in co_uk_df.iterrows():
         co_uk_row_data = co_uk_row[1]
         if co_uk_row_data.name not in dropped_matches[converted_year]:
@@ -384,9 +390,10 @@ if __name__ == '__main__':
     init_games(session)
 
     for converted_year in converted_years:
+        print(converted_year)
         atp_df, co_uk_df = load_data(converted_year)
 
-        compare_tournament_names(atp_df, co_uk_df)
+        compare_tournament_names(atp_df, co_uk_df, converted_year)
         correct_player_names(co_uk_df)
         create_players(session, atp_df)
         create_matches(session, atp_df, co_uk_df, converted_year)
