@@ -10,6 +10,7 @@ import datetime
 
 import xlrd
 import pandas as pd
+from sqlalchemy import desc
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Date, Table, Float, UniqueConstraint
 from sqlalchemy.orm import sessionmaker, relationship
@@ -28,37 +29,63 @@ player_match_table = Table('player_match', Base.metadata, Column('player_id', In
 class Game(Base):
     __tablename__ = 'games'
     game_id = Column(Integer, primary_key=True)
-    winner_points = Column(Integer)
-    loser_points = Column(Integer)
+    winner_points = Column(Integer, nullable=False)
+    loser_points = Column(Integer, nullable=False)
     __table_args__ = (UniqueConstraint('winner_points', 'loser_points', name='winner_loser_points'),)
 
 
 class Player(Base):
     __tablename__ = 'players'
     player_id = Column(Integer, primary_key=True)
-    first_name = Column(String)
-    second_name = Column(String)
-    matches = relationship("Match", secondary=player_match_table)
+    first_name = Column(String, nullable=False)
+    second_name = Column(String, nullable=False)
+    matches = relationship("Match", secondary=player_match_table, lazy='dynamic')
     __table_args__ = (UniqueConstraint('first_name', 'second_name', name='first_second_name'),)
+
+    def get_mean_probability(self, n, surface, date, probability_type):
+        last_matches = self.matches.filter(Match.best_of == 3, Match.surface == surface, Match.date < date)\
+            .order_by(desc(Match.date)).limit(n)
+
+        if last_matches.count() < n:
+            return None
+
+        probability = 0.
+        for match in last_matches:
+            if match.winner is self:
+                probability += match.__getattribute__("winner_{0}".format(probability_type))
+            else:
+                probability += match.__getattribute__("loser_{0}".format(probability_type))
+        return probability / n
+
+    def __repr__(self):
+        return "{0} {1}".format(self.first_name, self.second_name)
 
 
 class Match(Base):
     __tablename__ = 'matches'
     match_id = Column(Integer, primary_key=True)
-    date = Column(Date)
-    tournament = Column(String)
-    stage = Column(String)
-    surface = Column(String)
-    best_of = Column(Integer)
+    date = Column(Date, nullable=False)
+    tournament = Column(String, nullable=False)
+    stage = Column(String, nullable=False)
+    surface = Column(String, nullable=False)
+    best_of = Column(Integer, nullable=False)
     games = relationship("Game", secondary=match_game_table)
-    winner_rank = Column(Integer)
-    loser_rank = Column(Integer)
-    winner_odd = Column(Float)
-    loser_odd = Column(Float)
-    winner_service = Column(Float)
-    loser_service = Column(Float)
-    winner_return = Column(Float)
-    loser_return = Column(Float)
+    winner_rank = Column(Integer, nullable=False)
+    loser_rank = Column(Integer, nullable=False)
+    winner_odd = Column(Float, nullable=False)
+    loser_odd = Column(Float, nullable=False)
+    winner_service = Column(Float, nullable=False)
+    loser_service = Column(Float, nullable=False)
+    winner_return = Column(Float, nullable=False)
+    loser_return = Column(Float, nullable=False)
+
+    winner_id = Column(Integer, ForeignKey("players.player_id"), nullable=False)
+    loser_id = Column(Integer, ForeignKey("players.player_id"), nullable=False)
+    winner = relationship("Player", foreign_keys=[winner_id])
+    loser = relationship("Player", foreign_keys=[loser_id])
+
+    def __repr__(self):
+        return "{0} vs {1}".format(self.winner, self.loser)
 
 
 def init_games(session):
@@ -305,14 +332,27 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
             games.append(game)
         return games
 
+    def get_players(atp_row):
+        winner = session.query(Player).filter(Player.first_name == atp_row["winner_first_name"].values[0],
+                                              Player.second_name == atp_row["winner_second_name"].values[0])
+        loser = session.query(Player).filter(Player.first_name == atp_row["loser_first_name"].values[0],
+                                             Player.second_name == atp_row["loser_second_name"].values[0])
+        if winner.count() == 1 and loser.count() == 1:
+            winner = winner[0]
+            loser = loser[0]
+            return winner, loser
+        else:
+            raise Exception("Strange player queries for atp_row - {0}, winner count - {1}, loser count - {2}"
+                            .format(atp_row, winner.count(), loser.count()))
+
     def get_odds(co_uk_row):
         winner_odd = None
         loser_odd = None
         if "AvgW" in co_uk_row.index.values:
-            winner_odd = co_uk_row["AvgW"]
-            loser_odd = co_uk_row["AvgL"]
-            if not winner_odd or not loser_odd:
-                raise ValueError("Strange avg odds for row - {0}".format(co_uk_row))
+            if not pd.isnull(winner_odd):
+                winner_odd = co_uk_row["AvgW"]
+            if not pd.isnull(winner_odd):
+                loser_odd = co_uk_row["AvgL"]
 
         if "AvgW" not in co_uk_row.index.values or (not winner_odd or not loser_odd):
             col_names = co_uk_row["Comment":].index.values
@@ -369,11 +409,18 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
             winner_return = atp_row["winner_return_share"].values[0]
             loser_return = atp_row["loser_return_share"].values[0]
 
+            winner, loser = get_players(atp_row)
             if need_to_save:
-                match = Match(date=date, tournament=tournament, stage=stage, surface=surface, best_of=best_of,
-                              games=games, winner_rank=winner_rank, loser_rank=loser_rank, winner_odd=winner_odd,
-                              loser_odd=loser_odd, winner_service=winner_service, loser_service=loser_service,
-                              winner_return=winner_return, loser_return=loser_return)
+                try:
+                    match = Match(date=date, tournament=tournament, stage=stage, surface=surface, best_of=best_of,
+                                  games=games, winner_rank=winner_rank, loser_rank=loser_rank, winner_odd=winner_odd,
+                                  loser_odd=loser_odd, winner_service=winner_service, loser_service=loser_service,
+                                  winner_return=winner_return, loser_return=loser_return, winner_id=winner.player_id,
+                                  loser_id=loser.player_id)
+                except:
+                    print(co_uk_row_data)
+                    print(winner_odd)
+                    raise Exception()
                 session.add(match)
 
                 winner = session.query(Player).filter(Player.second_name == atp_row["winner_second_name"].values[0],
