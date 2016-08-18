@@ -11,7 +11,7 @@ import scrapy
 
 from tennis_model.tennis_model_scraper.tennis_model_scraper import items
 
-first_year = 2008  # datetime.datetime.now().year
+first_year = 2011  # datetime.datetime.now().year
 last_year = first_year
 
 player_stats_keys = ['playerStats', 'opponentStats']
@@ -44,13 +44,6 @@ class ATPWorldTourSpider(scrapy.Spider):
 
     def parse_tournament(self, response):
         stage_names = []
-        # unique_stage_names = response.xpath("//*[@id='scoresResultsContent']/div/table/thead/tr/th/text()")
-        # for seq, stage_name in zip(response.xpath("//*[@id='scoresResultsContent']/div/table/tbody"),
-        #                            unique_stage_names):
-        #     n_stages = len(seq.xpath('tr'))
-        #     for i in range(n_stages):
-        #         stage_names.append(stage_name)
-        #
         winner_names = []
         loser_names = []
         match_links = []
@@ -96,7 +89,6 @@ class ATPWorldTourSpider(scrapy.Spider):
         item["stage_name"] = response.meta['stage_name']
         item["year"] = year
         return item
-
 
 
 if __name__ == '__main__':

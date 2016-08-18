@@ -136,6 +136,7 @@ def compare_tournament_names(atp_df, co_uk_df):
         if atp_name in search_names:
             compared_names[co_uk_name] = atp_name
             search_names.remove(atp_name)
+    search_names = [name for name in search_names if "olympic" not in name]
 
     if len(search_names):
         print(len(search_names))
@@ -162,7 +163,10 @@ def correct_player_names(co_uk_df):
                          "Dev Varman S.": "Devvarman S.", "Schuttler P.": "Schuettler P.",
                          "Dutra Silva R.": "Silva R.", "Huta Galung J.": "Galung J.",
                          "Fornell M.": "Fornell-Mestres M.", "Ruevski P.": "Rusevski P.",
-                         "Matsukevitch D.": "Matsukevich D.", "Chekov P.": "Chekhov P."}
+                         "Matsukevitch D.": "Matsukevich D.", "Chekov P.": "Chekhov P.", "Haji A.": "Hajji A.",
+                         "Podlipnik H.": "Podlipnik-Castillo H.", "Munoz de la Nava D.": "de la Nava D.",
+                         "Al-Ghareeb M.": "Ghareeb M.", "Lopez-Jaen M.A.": "Jaen M.",
+                         "Sanchez De Luna J.": "Luna J.", "Estrella V.": "Burgos V.", "De Heart R.": "Deheart R."}
     for old_name, new_name in handle_correction.items():
         if old_name in winner_names:
             winner_dict[old_name] = new_name
@@ -270,33 +274,39 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
 
     def get_odds(co_uk_row):
         if "AvgW" in co_uk_row.index.values:
-            return co_uk_row["AvgW"], co_uk_row["AvgL"]
-        col_names = co_uk_row["Comment":].index.values
+            winner_odd = co_uk_row["AvgW"]
+            loser_odd = co_uk_row["AvgL"]
+            if not winner_odd or not loser_odd:
+                raise ValueError("Strange avg odds for row - {0}".format(co_uk_row))
+        else:
+            col_names = co_uk_row["Comment":].index.values
 
-        winner_odd = 0
-        loser_odd = 0
-        delim = 0
-        for name in col_names[1:]:
-            if co_uk_row[name] and "Max" not in name:
-                if name[-1] == "W":
-                    winner_odd += co_uk_row[name]
-                elif name[-1] == "L":
-                    loser_odd += co_uk_row[name]
-                else:
-                    raise Exception("Strange odd name - {0}".format(name))
-                delim += 1
+            winner_odd = 0
+            loser_odd = 0
+            delim_w = 0
+            delim_l = 0
+            for name in col_names[1:]:
+                if not pd.isnull(co_uk_row[name]) and "Max" not in name:
+                    if name[-1] == "W":
+                        winner_odd += co_uk_row[name]
+                        delim_w += 1
+                    elif name[-1] == "L":
+                        loser_odd += co_uk_row[name]
+                        delim_l += 1
+                    else:
+                        raise Exception("Strange odd name - {0}".format(name))
 
-        if not delim or delim % 1:
-            raise Exception("No odds or odd number of odds for row - {0}, delim - {1}".format(co_uk_row, delim))
+            if not delim_w or not delim_l:
+                raise ValueError("No odds or odd number of odds for row - {0}".format(co_uk_row))
 
-        delim /= 2
-        winner_odd /= delim
-        loser_odd /= delim
+            winner_odd /= delim_w
+            loser_odd /= delim_l
         return winner_odd, loser_odd
 
     co_uk_df = co_uk_df[(co_uk_df["Comment"] == "Completed") & (~pd.isnull(co_uk_df["Tournament"]) &
                         (co_uk_df["Round"] != "Round Robin") & (co_uk_df["Winner"] != "fnisk"))]
-    dropped_matches = {2006: [159, 1486, 1511, 1919, 2147], 2007: [240, 387, 558, 581, 1763, 2552], 2008: []}
+    dropped_matches = {2006: [159, 1486, 1511, 1919, 2147], 2007: [240, 387, 558, 581, 1763, 2552],
+                       2008: [43, 602, 621, 714, 1060, 1061, 1064, 1073, 1076, 2691], 2009: []}
     for co_uk_row in co_uk_df.iterrows():
         co_uk_row_data = co_uk_row[1]
         if co_uk_row_data.name not in dropped_matches[converted_year]:
@@ -312,9 +322,9 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
                 games = get_games(co_uk_row_data)
                 winner_rank = int(co_uk_row_data["WRank"])
                 loser_rank = int(co_uk_row_data["LRank"])
+                winner_odd, loser_odd = get_odds(co_uk_row_data)
             except ValueError:
                 need_to_save = False
-            winner_odd, loser_odd = get_odds(co_uk_row_data)
 
             winner_service = atp_row["winner_service_share"].values[0]
             loser_service = atp_row["loser_service_share"].values[0]
@@ -338,7 +348,7 @@ def create_matches(session, atp_df, co_uk_df, converted_year):
 
 
 if __name__ == '__main__':
-    converted_years = [2006]
+    converted_years = [2008]
     engine = create_engine('sqlite:///tennis_model.db')
 
     Base.metadata.drop_all(engine)
