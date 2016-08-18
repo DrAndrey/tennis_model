@@ -11,7 +11,7 @@ import scrapy
 
 from tennis_model.tennis_model_scraper.tennis_model_scraper import items
 
-first_year = 2013  # datetime.datetime.now().year
+first_year = 2014  # datetime.datetime.now().year
 last_year = first_year
 
 player_stats_keys = ['playerStats', 'opponentStats']
