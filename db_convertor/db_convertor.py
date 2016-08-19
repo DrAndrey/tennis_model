@@ -9,6 +9,7 @@ import zipfile
 import datetime
 
 import xlrd
+import numpy as np
 import pandas as pd
 from sqlalchemy import desc
 from sqlalchemy.ext.declarative import declarative_base
@@ -24,6 +25,8 @@ match_game_table = Table('match_game', Base.metadata, Column('match_id', Integer
                          Column('game_id', Integer, ForeignKey('games.game_id')))
 player_match_table = Table('player_match', Base.metadata, Column('player_id', Integer, ForeignKey('players.player_id')),
                            Column('match_id', Integer, ForeignKey('matches.match_id')))
+
+search_time_depth = datetime.timedelta(days=365 * 3)
 
 
 class Game(Base):
@@ -42,20 +45,63 @@ class Player(Base):
     matches = relationship("Match", secondary=player_match_table, lazy='dynamic')
     __table_args__ = (UniqueConstraint('first_name', 'second_name', name='first_second_name'),)
 
-    def get_mean_probability(self, n, surface, date, probability_type):
+    def _get_last_opponents(self, surface, date):
+        left_date = date - search_time_depth
+        last_matches = self.matches.filter(Match.best_of == 3, Match.surface == surface,
+                                           Match.date < date, left_date <= Match.date).order_by(desc(Match.date))
+        last_opponents = set()
+        for match in last_matches:
+            if match.winner is self:
+                opponent = match.loser
+            else:
+                opponent = match.winner
+            last_opponents.add(opponent)
+        return last_opponents
+
+    def calculate_probabilities(self, n, matches):
+        service_probability = 0.
+        return_probability = 0.
+        for match in matches:
+            if match.winner is self:
+                service_probability += match.winner_service
+                return_probability += match.winner_return
+            else:
+                service_probability += match.loser_service
+                return_probability += match.loser_return
+        return service_probability / n, return_probability / n
+
+    def get_mean_probability_for_all_last_matches(self, n, surface, date):
         last_matches = self.matches.filter(Match.best_of == 3, Match.surface == surface, Match.date < date)\
             .order_by(desc(Match.date)).limit(n)
 
         if last_matches.count() < n:
-            return None
+            return None, None
 
-        probability = 0.
-        for match in last_matches:
-            if match.winner is self:
-                probability += match.__getattribute__("winner_{0}".format(probability_type))
-            else:
-                probability += match.__getattribute__("loser_{0}".format(probability_type))
-        return probability / n
+        return self.calculate_probabilities(n, last_matches)
+
+    def get_mean_probability_for_common_opponents(self, n, surface, date, current_opponent):
+        my_last_opponents = self._get_last_opponents(surface, date)
+        current_opponent_last_opponents = current_opponent._get_last_opponents(surface, date)
+        common_opponents = my_last_opponents.intersection(current_opponent_last_opponents)
+        if common_opponents:
+            left_date = date - search_time_depth
+            last_matches = self.matches.filter(Match.best_of == 3, Match.surface == surface, Match.date < date,
+                                               left_date <= Match.date).order_by(desc(Match.date)).limit(n)
+            matches_with_common = [match for match in last_matches if match.winner is self or match.loser is self]
+            if len(matches_with_common) >= n:
+                service_probability = []
+                return_probability = []
+                for match in matches_with_common:
+                    if match.winner is self:
+                        service_probability.append(match.winner_service)
+                        return_probability.append(match.winner_return)
+                    else:
+                        service_probability.append(match.loser_service)
+                        return_probability.append(match.loser_return)
+                return np.array(service_probability), np.array(return_probability)
+
+        return None, None
+
 
     def __repr__(self):
         return "{0} {1}".format(self.first_name, self.second_name)
